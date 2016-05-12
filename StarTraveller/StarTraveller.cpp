@@ -4,6 +4,7 @@
 #include <map>
 #include <sstream>
 #include <vector>
+#include <iomanip>
 
 using namespace std;
 
@@ -11,10 +12,14 @@ class StarTraveller {
 public:
     int NStars;
     vector<int> used;
+    vector<int> stars;
+    double totalEnergy;
     int init(vector<int> stars)
     {
         NStars = stars.size()/2;
         used.resize(NStars, 0);
+        this->stars = stars;
+        totalEnergy = 0;
         return 0;
     }
     vector<int> makeMoves(vector<int> ufos, vector<int> ships)
@@ -32,6 +37,22 @@ public:
         {
             ret.push_back((ships[ret.size()]+1)%NStars);
         }
+        double energy = 0;
+        for (int shipNum = 0; shipNum < ret.size(); shipNum++)
+        {
+            double distance = 0;
+            distance += (stars[2*ret[shipNum]] - stars[2*ships[shipNum]])*(stars[2 * ret[shipNum]] - stars[2 * ships[shipNum]]);
+            distance += (stars[2 * ret[shipNum] + 1] - stars[2 * ships[shipNum] + 1])*(stars[2 * ret[shipNum] + 1] - stars[2 * ships[shipNum] + 1]);
+            distance = sqrt(distance);
+            for (int ufoNum = 0; ufoNum < ufos.size() / 3; ufoNum++)
+            {
+                if (ufos[3 * ufoNum] == ships[shipNum] && ufos[3 * ufoNum + 1] == ret[shipNum]) distance *= 0.001;
+            }
+            energy += distance;
+        }
+        totalEnergy += energy;
+        cerr << setprecision(13) << fixed << energy << endl;
+        cerr << setprecision(13) << fixed << "total:" << totalEnergy << endl;
         return ret;
     }
 };
