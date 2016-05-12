@@ -39,40 +39,26 @@ public:
         {
             double maxScore = -1e10;
             int nextNumOfStar;
-            for (int i = 0; i < 100; i++)
+            set<int> selectedStars;
+            for (int numOfStar = 0; numOfStar < NStars; ++numOfStar)
             {
-                int numOfStar;
-                if (i == 0) numOfStar = ships[numOfShip];
-                else numOfStar = dist(engine);
                 bool usingNewStar = false;
                 if (visitedStars.find(numOfStar) == visitedStars.end()) usingNewStar = true;
                 double energy = 0;
                 energy += (stars[2 * numOfStar] - stars[2 * ships[numOfShip]])*(stars[2 * numOfStar] - stars[2 * ships[numOfShip]]);
                 energy += (stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1])*(stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1]);
+                for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3); numOfUfo++)
+                {
+                    if (ufos[3 * numOfUfo + turn] == ships[numOfShip] && ufos[3 * numOfUfo + turn + 1] == numOfStar)
+                    {
+                        energy *= 0.001 * 0.001;
+                    }
+                }
                 double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
                 if (score > maxScore)
                 {
                     maxScore = score;
                     nextNumOfStar = numOfStar;
-                }
-            }
-            for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3) ; numOfUfo++)
-            {
-                if (ufos[3 * numOfUfo + turn] == ships[numOfShip])
-                {
-                    int numOfStar = ufos[3 * numOfUfo + turn + 1];
-                    bool usingNewStar = false;
-                    if (visitedStars.find(numOfStar) == visitedStars.end()) usingNewStar = true;
-                    double energy = 0;
-                    energy += (stars[2 * numOfStar] - stars[2 * ships[numOfShip]])*(stars[2 * numOfStar] - stars[2 * ships[numOfShip]]);
-                    energy += (stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1])*(stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1]);
-                    energy = energy * 0.001 * 0.001;
-                    double score = -energy + (double)(currentTurn * currentTurn) * 1e10 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
-                    if (score > maxScore)
-                    {
-                        maxScore = score;
-                        nextNumOfStar = numOfStar;
-                    }
                 }
             }
             visitedStars.insert(nextNumOfStar);
