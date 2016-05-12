@@ -5,54 +5,79 @@
 #include <sstream>
 #include <vector>
 #include <iomanip>
+#include <random>
+#include <set>
 
 using namespace std;
 
 class StarTraveller {
 public:
     int NStars;
-    vector<int> used;
+    set<int> visitedStars;
     vector<int> stars;
     double totalEnergy;
+    int currentTurn;
+    int maxTurn;
     int init(vector<int> stars)
     {
         NStars = stars.size()/2;
-        used.resize(NStars, 0);
         this->stars = stars;
         totalEnergy = 0;
+        currentTurn = 0;
+        maxTurn = NStars * 4;
         return 0;
     }
     vector<int> makeMoves(vector<int> ufos, vector<int> ships)
     {
+        currentTurn++;
         vector<int> ret;
-        for (int i=0;i<NStars;i++)
-            if (!used[i])
-            {
-                used[i] = 1;
-                ret.push_back(i);
-                if (ret.size()==ships.size()) break;
-            }
-        // Make sure the return is filled with valid moves for the final move.
-        while (ret.size()<ships.size())
+        random_device seed_gen;
+        mt19937 engine(seed_gen());
+        uniform_int_distribution<> dist(0, NStars - 1);
+        int turn = 0;
+        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
         {
-            ret.push_back((ships[ret.size()]+1)%NStars);
-        }
-        double energy = 0;
-        for (int shipNum = 0; shipNum < ret.size(); shipNum++)
-        {
-            double distance = 0;
-            distance += (stars[2*ret[shipNum]] - stars[2*ships[shipNum]])*(stars[2 * ret[shipNum]] - stars[2 * ships[shipNum]]);
-            distance += (stars[2 * ret[shipNum] + 1] - stars[2 * ships[shipNum] + 1])*(stars[2 * ret[shipNum] + 1] - stars[2 * ships[shipNum] + 1]);
-            distance = sqrt(distance);
-            for (int ufoNum = 0; ufoNum < ufos.size() / 3; ufoNum++)
+            double maxScore = -1e10;
+            int nextNumOfStar;
+            for (int i = 0; i < 100; i++)
             {
-                if (ufos[3 * ufoNum] == ships[shipNum] && ufos[3 * ufoNum + 1] == ret[shipNum]) distance *= 0.001;
+                int numOfStar;
+                if (i == 0) numOfStar = ships[numOfShip];
+                else numOfStar = dist(engine);
+                bool usingNewStar = false;
+                if (visitedStars.find(numOfStar) == visitedStars.end()) usingNewStar = true;
+                double energy = 0;
+                energy += (stars[2 * numOfStar] - stars[2 * ships[numOfShip]])*(stars[2 * numOfStar] - stars[2 * ships[numOfShip]]);
+                energy += (stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1])*(stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1]);
+                double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
+                if (score > maxScore)
+                {
+                    maxScore = score;
+                    nextNumOfStar = numOfStar;
+                }
             }
-            energy += distance;
+            for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3) ; numOfUfo++)
+            {
+                if (ufos[3 * numOfUfo + turn] == ships[numOfShip])
+                {
+                    int numOfStar = ufos[3 * numOfUfo + turn + 1];
+                    bool usingNewStar = false;
+                    if (visitedStars.find(numOfStar) == visitedStars.end()) usingNewStar = true;
+                    double energy = 0;
+                    energy += (stars[2 * numOfStar] - stars[2 * ships[numOfShip]])*(stars[2 * numOfStar] - stars[2 * ships[numOfShip]]);
+                    energy += (stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1])*(stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1]);
+                    energy = energy * 0.001 * 0.001;
+                    double score = -energy + (double)(currentTurn * currentTurn) * 1e10 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
+                    if (score > maxScore)
+                    {
+                        maxScore = score;
+                        nextNumOfStar = numOfStar;
+                    }
+                }
+            }
+            visitedStars.insert(nextNumOfStar);
+            ret.push_back(nextNumOfStar);
         }
-        totalEnergy += energy;
-        cerr << setprecision(13) << fixed << energy << endl;
-        cerr << setprecision(13) << fixed << "total:" << totalEnergy << endl;
         return ret;
     }
 };
