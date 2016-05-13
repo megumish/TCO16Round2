@@ -1,3 +1,3 @@
-set /A NUM = 10
-java -jar Tester.jar -exec "..\Release\TCOMM_CutTheRoots.exe" -seed %NUM% -vis 
+set /A NUM = %RANDOM%
+java -jar Tester.jar -exec "..\Release\StarTraveller.exe" -seed %NUM% -save output%NUM%.png
 @pause

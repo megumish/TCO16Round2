@@ -34,6 +34,7 @@ public:
         random_device seed_gen;
         mt19937 engine(seed_gen());
         uniform_int_distribution<> dist(0, NStars - 1);
+        uniform_int_distribution<> distBool(0, 100);
         int turn = 0;
         for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
         {
@@ -43,6 +44,7 @@ public:
             for (int numOfStar = 0; numOfStar < NStars; ++numOfStar)
             {
                 bool usingNewStar = false;
+                bool usingUFO = false;
                 if (visitedStars.find(numOfStar) == visitedStars.end()) usingNewStar = true;
                 double energy = 0;
                 energy += (stars[2 * numOfStar] - stars[2 * ships[numOfShip]])*(stars[2 * numOfStar] - stars[2 * ships[numOfShip]]);
@@ -54,7 +56,7 @@ public:
                         energy *= 0.001 * 0.001;
                     }
                 }
-                double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
+                double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar || usingUFO ? 1. : 0) / (maxTurn * maxTurn);
                 if (score > maxScore)
                 {
                     maxScore = score;
