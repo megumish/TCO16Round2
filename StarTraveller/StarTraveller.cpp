@@ -17,10 +17,12 @@ public:
     vector<int> stars;
     int currentTurn;
     int maxTurn;
-    double maxScore;
+    double bestScore;
+    double nextScore;
     double totalConsumedEnergy = 0;
     bool initPath;
     vector<vector<int>> paths;
+    vector<vector<int>> bestPaths;
     vector<vector<double>> energies;
     int init(vector<int> stars)
     {
@@ -30,7 +32,8 @@ public:
         maxTurn = NStars * 4;
         initPath = true;
         totalConsumedEnergy = 0;
-        maxScore = -1e10;
+        bestScore = -1e10;
+        nextScore = -1e10;
         return 0;
     }
 
@@ -73,7 +76,7 @@ public:
             }
         }
         double currentConsumedEnergy = 0;
-        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+        for (int numOfShip = 0; numOfShip < ships.size(); ++numOfShip)
         {
             auto path = paths[numOfShip];
             double energy = 0;
@@ -93,7 +96,7 @@ public:
         uniform_int_distribution<int> distTurn(currentTurn, maxTurn);
         uniform_int_distribution<int> distShip(0, ships.size() - 1);
         uniform_real_distribution<double> distBool(0, 1);
-        for (int trial = 0; trial < 2; trial++)
+        for (int trial = 0; trial < 1; ++trial)
         {
             auto prevPaths = paths;
             auto willVisitStar = visitedStars;
@@ -136,10 +139,15 @@ public:
                 willVisitStar.insert(path[turn]);
             }
             double score = -(totalEnergy + totalConsumedEnergy) + ((double)turn * turn) * (willVisitStar.size() - visitedStars.size()) / ships.size() * 1e6 / (maxTurn * maxTurn);
-            if (score > maxScore)
+            if (score > bestScore)
             {
                 cerr << setprecision(13) << fixed << totalEnergy + totalConsumedEnergy << endl;
-                maxScore = score;
+                bestScore = score;
+                bestPaths = paths;
+            }
+            if (score > nextScore || distBool(engine) >= 1.0 * (double)currentTurn / maxTurn)
+            {
+                nextScore = score;
                 currentConsumedEnergy = consumedEnergy;
             }
             else paths = prevPaths;
@@ -147,8 +155,8 @@ public:
         vector<int> ret(ships.size());
         for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
         {
-            ret[numOfShip] = paths[numOfShip][currentTurn];
-            visitedStars.insert(paths[numOfShip][currentTurn]);
+            ret[numOfShip] = bestPaths[numOfShip][currentTurn];
+            visitedStars.insert(bestPaths[numOfShip][currentTurn]);
         }
         totalConsumedEnergy += currentConsumedEnergy;
         initPath = false;
