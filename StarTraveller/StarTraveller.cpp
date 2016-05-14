@@ -17,13 +17,13 @@ public:
     vector<int> stars;
     int currentTurn;
     int maxTurn;
-    double bestScore;
-    double nextScore;
+    double maxScore;
     double totalConsumedEnergy = 0;
+    int endTurn;
     bool initPath;
     vector<vector<int>> paths;
-    vector<vector<int>> bestPaths;
     vector<vector<double>> energies;
+    vector<int> stops;
     int init(vector<int> stars)
     {
         NStars = stars.size() / 2;
@@ -32,8 +32,7 @@ public:
         maxTurn = NStars * 4;
         initPath = true;
         totalConsumedEnergy = 0;
-        bestScore = -1e10;
-        nextScore = -1e10;
+        maxScore = -1e10;
         return 0;
     }
 
@@ -42,9 +41,10 @@ public:
         currentTurn++;
         random_device seed_gen;
         mt19937 engine(seed_gen());
-        uniform_int_distribution<int> distStar(0, NStars - 1);
+        uniform_real_distribution<double> dist(0, 1);
         if (initPath)
         {
+            stops = vector<int>(ships.size());
             paths = vector<vector<int>>(ships.size(), vector<int>(maxTurn + 1));
             energies = vector<vector<double>>(ships.size(), vector<double>(maxTurn + 1));
             for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++) paths[numOfShip][0] = ships[numOfShip];
@@ -76,7 +76,7 @@ public:
             }
         }
         double currentConsumedEnergy = 0;
-        for (int numOfShip = 0; numOfShip < ships.size(); ++numOfShip)
+        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
         {
             auto path = paths[numOfShip];
             double energy = 0;
@@ -84,79 +84,170 @@ public:
                 *(stars[2 * path[currentTurn]] - stars[2 * path[currentTurn - 1]]);
             energy += (stars[2 * path[currentTurn] + 1] - stars[2 * path[currentTurn - 1] + 1])
                 *(stars[2 * path[currentTurn] + 1] - stars[2 * path[currentTurn - 1] + 1]);
-            for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3); numOfUfo++)
+            for (int numOfUFO = 0; numOfUFO < (ufos.size() / 3); numOfUFO++)
             {
-                if (ufos[3 * numOfUfo] == path[currentTurn - 1] && ufos[3 * numOfUfo + 1] == path[currentTurn])
+                if (ufos[3 * numOfUFO] == path[currentTurn - 1] && ufos[3 * numOfUFO + 1] == path[currentTurn])
                 {
                     energy *= 0.001;
                 }
             }
             currentConsumedEnergy += energy;
         }
-        uniform_int_distribution<int> distTurn(currentTurn, maxTurn);
-        uniform_int_distribution<int> distShip(0, ships.size() - 1);
-        uniform_real_distribution<double> distBool(0, 1);
-        for (int trial = 0; trial < 1; ++trial)
+        if (initPath)
         {
-            auto prevPaths = paths;
             auto willVisitStar = visitedStars;
             double totalEnergy = 0;
             double consumedEnergy = 0;
-            int randShip = distShip(engine);
-            int randTurn0 = distTurn(engine);
-            int randTurn1 = distTurn(engine);
-            if (!initPath) swap(paths[randShip][randTurn0], paths[randShip][randTurn1]);
             int turn;
-            for (turn = currentTurn; turn <= maxTurn; turn++) for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+            for (turn = currentTurn; turn <= maxTurn; turn++)
             {
                 if (willVisitStar.size() == NStars) break;
-                double energy = 0;
-                auto& path = paths[numOfShip];
-                if ((numOfShip == randShip && turn == randTurn0) || (numOfShip == randShip && turn == randTurn1) ||
-                    (numOfShip == randShip + 1 && turn == randTurn0 + 1) || (numOfShip == randShip + 1 && turn == randTurn1 + 1))
+                for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
                 {
-                    energy += (stars[2 * path[turn]] - stars[2 * path[turn - 1]])
-                        *(stars[2 * path[turn]] - stars[2 * path[turn - 1]]);
-                    energy += (stars[2 * path[turn] + 1] - stars[2 * path[turn - 1] + 1])
-                        *(stars[2 * path[turn] + 1] - stars[2 * path[turn - 1] + 1]);
-                    if (turn <= currentTurn + 1)
+                    double energy = 0;
+                    auto& path = paths[numOfShip];
+                    energy = energies[numOfShip][turn];
+                    if (turn == currentTurn)
                     {
-                        for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3); numOfUfo++)
-                        {
-                            if (ufos[3 * numOfUfo + (turn - currentTurn)] == path[turn - 1] && ufos[3 * numOfUfo + (turn - currentTurn) + 1] == path[turn])
-                            {
-                                energy *= 0.001;
-                            }
-                        }
+                        consumedEnergy += energy;
                     }
+                    totalEnergy += energy;
+                    willVisitStar.insert(path[turn]);
                 }
-                else energy = energies[numOfShip][turn];
-                if (turn == currentTurn)
-                {
-                    consumedEnergy += energy;
-                }
-                totalEnergy += energy;
-                willVisitStar.insert(path[turn]);
             }
-            double score = -(totalEnergy + totalConsumedEnergy) + ((double)turn * turn) * (willVisitStar.size() - visitedStars.size()) / ships.size() * 1e6 / (maxTurn * maxTurn);
-            if (score > bestScore)
+            double score = -(totalEnergy + totalConsumedEnergy);
+            cerr << fixed << "score:" << score << endl;
+            if (score > maxScore && endTurn != maxTurn)
             {
                 cerr << setprecision(13) << fixed << totalEnergy + totalConsumedEnergy << endl;
-                bestScore = score;
-                bestPaths = paths;
-            }
-            if (score > nextScore || distBool(engine) >= 1.0 * (double)currentTurn / maxTurn)
-            {
-                nextScore = score;
+                maxScore = score;
                 currentConsumedEnergy = consumedEnergy;
+                endTurn = turn;
             }
-            else paths = prevPaths;
         }
+        if (endTurn < maxTurn)
+        {
+            for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+            {
+                if (paths[numOfShip][currentTurn] != ships[numOfShip])
+                {
+                    endTurn++;
+                    paths[numOfShip].insert(paths[numOfShip].begin() + currentTurn, ships[numOfShip]);
+                }
+            }
+        }
+        for (int numOfUFO = 0; numOfUFO < (ufos.size() / 3); numOfUFO++)
+        {
+            for (int numOfShipOnUFO = 0; numOfShipOnUFO < ships.size(); numOfShipOnUFO++)
+            {
+                if (ufos[3 * numOfUFO] == ships[numOfShipOnUFO] && dist(engine) <= stops[numOfShipOnUFO] / 10)
+                {
+                    cerr << "UFOだ！！！" << endl;
+                    auto prevWillVisitStar = visitedStars;
+                    double prevTotalEnergy = 0;
+                    double prevConsumedEnergy = 0;
+                    int turn;
+                    for (turn = currentTurn; turn <= maxTurn; turn++)
+                    {
+                        if (prevWillVisitStar.size() == NStars) break;
+                        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+                        {
+                            double energy = 0;
+                            auto& path = paths[numOfShip];
+                            energy = energies[numOfShip][turn];
+                            if (turn == currentTurn)
+                            {
+                                prevConsumedEnergy += energy;
+                            }
+                            prevTotalEnergy += energy;
+                            prevWillVisitStar.insert(path[turn]);
+                        }
+                    }
+                    set<int> initVisitedStars = visitedStars;
+                    auto prevPaths = paths;
+                    for (int turn = currentTurn; turn <= maxTurn; turn++) for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+                    {
+                        int initNumOfStar;
+                        double initEnergy;
+                        double initMaxScore = -1e10;
+                        int prevNumOfStar = paths[numOfShip][turn - 1];
+                        for (int numOfStar = 0; numOfStar < NStars; ++numOfStar)
+                        {
+                            bool usingNewStar = false;
+                            if (initVisitedStars.find(numOfStar) == initVisitedStars.end()) usingNewStar = true;
+                            double energy = 0;
+                            energy += (stars[2 * numOfStar] - stars[2 * prevNumOfStar])*(stars[2 * numOfStar] - stars[2 * prevNumOfStar]);
+                            energy += (stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1])*(stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1]);
+                            if (numOfShip == numOfShipOnUFO && turn == currentTurn && numOfStar == ufos[3 * numOfUFO + 1])
+                            {
+                                energy *= 0.001 * 0.001;
+                                initNumOfStar = numOfStar;
+                                initEnergy = energy;
+                                break;
+                            }
+                            double initScore = -energy + (double)(turn * turn) * 1e6 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
+                            if (initScore > initMaxScore)
+                            {
+                                initMaxScore = initScore;
+                                initNumOfStar = numOfStar;
+                                initEnergy = energy;
+                            }
+                        }
+                        energies[numOfShip][turn] = initEnergy;
+                        paths[numOfShip][turn] = initNumOfStar;
+                        initVisitedStars.insert(initNumOfStar);
+                    }
+                    auto willVisitStar = visitedStars;
+                    double totalEnergy = 0;
+                    double consumedEnergy = 0;
+                    int turn;
+                    for (turn = currentTurn; turn <= maxTurn; turn++)
+                    {
+                        if (willVisitStar.size() == NStars) break;
+                        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+                        {
+                            double energy = 0;
+                            auto& path = paths[numOfShip];
+                            energy = energies[numOfShip][turn];
+                            if (turn == currentTurn)
+                            {
+                                consumedEnergy += energy;
+                            }
+                            totalEnergy += energy;
+                            willVisitStar.insert(path[turn]);
+                        }
+                    }
+                    double score = -(totalEnergy + totalConsumedEnergy);
+                    if (score > maxScore && endTurn != maxTurn)
+                    {
+                        cerr << setprecision(13) << fixed << totalEnergy + totalConsumedEnergy << endl;
+                        maxScore = score;
+                        currentConsumedEnergy = consumedEnergy;
+                        endTurn = turn;
+                    }
+                    else paths = prevPaths;
+                }
+                if (ufos[3 * numOfUFO + 1] == ships[numOfShipOnUFO] && endTurn < maxTurn)
+                {
+                    cerr << "UFOがここに来るんだって！！" << endl;
+                    if (paths[numOfShipOnUFO][currentTurn] != ships[numOfShipOnUFO])
+                    {
+                        endTurn++;
+                        paths[numOfShipOnUFO].insert(paths[numOfShipOnUFO].begin() + currentTurn, ships[numOfShipOnUFO]);
+                    }
+                }
+            }
+        }
+        uniform_int_distribution<int> distTurn(currentTurn, maxTurn);
+        uniform_int_distribution<int> distShip(0, ships.size() - 1);
+        uniform_real_distribution<double> distBool(0, 1);
         vector<int> ret(ships.size());
         for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
         {
-            ret[numOfShip] = bestPaths[numOfShip][currentTurn];
-            visitedStars.insert(bestPaths[numOfShip][currentTurn]);
+            ret[numOfShip] = paths[numOfShip][currentTurn];
+            if (ret[numOfShip] == ships[numOfShip]) stops[numOfShip]++;
+            else stops[numOfShip] == 0;
+            visitedStars.insert(paths[numOfShip][currentTurn]);
         }
         totalConsumedEnergy += currentConsumedEnergy;
         initPath = false;
