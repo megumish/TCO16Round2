@@ -60,14 +60,14 @@ public:
                     bool usingNewStar = false;
                     if (initVisitedStars.find(numOfStar) == initVisitedStars.end()) usingNewStar = true;
                     double energy = 0;
-                    energy += (stars[2 * numOfStar] - stars[2 * prevNumOfStar])*(stars[2 * numOfStar] - stars[2 * prevNumOfStar]);
-                    energy += (stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1])*(stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1]);
-                    double initScore = -energy + (double)(turn * turn) * 1e6 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
+                    energy += abs(stars[2 * numOfStar] - stars[2 * prevNumOfStar]);
+                    energy += abs(stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1]);
+                    double initScore = -energy + (double)(turn * turn) * 1e3 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
                     if (initScore > initMaxScore)
                     {
                         initMaxScore = initScore;
                         initNumOfStar = numOfStar;
-                        initEnergy = sqrt(energy);
+                        initEnergy = energy;
                     }
                 }
                 energies[numOfShip][turn] = initEnergy;
@@ -104,6 +104,7 @@ public:
                 endTurn = turn;
                 initPath = false;
             }
+            else exit(-1);
         }
         //if (endTurn < maxTurn)
         //{
@@ -135,22 +136,21 @@ public:
                             bool usingNewStar = false;
                             if (initVisitedStars.find(numOfStar) == initVisitedStars.end()) usingNewStar = true;
                             double energy = 0;
-                            energy += (stars[2 * numOfStar] - stars[2 * prevNumOfStar])*(stars[2 * numOfStar] - stars[2 * prevNumOfStar]);
-                            energy += (stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1])*(stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1]);
+                            energy += abs(stars[2 * numOfStar] - stars[2 * prevNumOfStar]);
+                            energy += abs(stars[2 * numOfStar + 1] - stars[2 * prevNumOfStar + 1]);
                             if (numOfShip == numOfShipOnUFO && turn == currentTurn && numOfStar == ufos[3 * numOfUFO + 1])
                             {
-                                energy = sqrt(energy);
                                 energy *= 0.001;
                                 initNumOfStar = numOfStar;
                                 initEnergy = energy;
                                 break;
                             }
-                            double initScore = -energy + (double)(turn * turn) * 1e6 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
+                            double initScore = -energy + (double)(turn * turn) * 1e3 * (usingNewStar ? 1. : 0.) / (maxTurn * maxTurn);
                             if (initScore > initMaxScore)
                             {
                                 initMaxScore = initScore;
                                 initNumOfStar = numOfStar;
-                                initEnergy = sqrt(energy);
+                                initEnergy = energy;
                             }
                         }
                         energies[numOfShip][turn] = initEnergy;
