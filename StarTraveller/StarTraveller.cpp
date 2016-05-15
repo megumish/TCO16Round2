@@ -10,61 +10,130 @@
 
 using namespace std;
 
+vector<int> allStars;
+//Should x,y are real numbers?
+struct Point {
+    int x, y;
+    Point() {}
+    Point(int x, int y) { this->x = x; this->y = y; }
+    bool operator==(const Point p) const
+    {
+        return x == p.x && y == p.y;
+    }
+};
+
+class Garaxy {
+public:
+    Point center;
+    vector<int> stars;
+    Garaxy(): stars(0), sumX(0), sumY(0){}
+    void addStars(int numOfStar);
+private:
+    int sumX;
+    int sumY;
+};
+
+void Garaxy::addStars(int numOfStar)
+{
+    stars.push_back(numOfStar);
+    sumX += allStars[2 * numOfStar];
+    sumY += allStars[2 * numOfStar + 1];
+    center.x = sumX / stars.size();
+    center.y = sumY / stars.size();
+}
+
 class StarTraveller {
 public:
-    int NStars;
-    set<int> visitedStars;
-    vector<int> stars;
-    double totalEnergy;
+    int NStar;
+    vector<Garaxy> galaxies;
     int currentTurn;
     int maxTurn;
+    bool initSettings;
+    vector<int> ownedGalaxies;
+    vector<bool> inTerritory;
     int init(vector<int> stars)
     {
-        NStars = stars.size()/2;
-        this->stars = stars;
-        totalEnergy = 0;
+        NStar = stars.size() / 2;
+        allStars = stars;
+        maxTurn = 4 * NStar;
         currentTurn = 0;
-        maxTurn = NStars * 4;
+        initSettings = true;
         return 0;
     }
     vector<int> makeMoves(vector<int> ufos, vector<int> ships)
     {
         currentTurn++;
-        vector<int> ret;
         random_device seed_gen;
-        mt19937 engine(seed_gen());
-        uniform_int_distribution<> dist(0, NStars - 1);
-        uniform_int_distribution<> distBool(0, 100);
-        int turn = 0;
-        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+        mt19937 engine(seed_gen);
+        uniform_int_distribution<int> distStar(0, NStar - 1);
+        if (initSettings)
         {
-            double maxScore = -1e10;
-            int nextNumOfStar;
-            set<int> selectedStars;
-            for (int numOfStar = 0; numOfStar < NStars; ++numOfStar)
+            vector<bool> includedStars(NStar,false);
+            galaxies = vector<Garaxy>(ships.size());
+            for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
             {
-                bool usingNewStar = false;
-                bool usingUFO = false;
-                if (visitedStars.find(numOfStar) == visitedStars.end()) usingNewStar = true;
-                double energy = 0;
-                energy += (stars[2 * numOfStar] - stars[2 * ships[numOfShip]])*(stars[2 * numOfStar] - stars[2 * ships[numOfShip]]);
-                energy += (stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1])*(stars[2 * numOfStar + 1] - stars[2 * ships[numOfShip] + 1]);
-                for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3); numOfUfo++)
+                int numOfStar = distStar(engine);
+                galaxies[numOfGalaxy].addStars(numOfStar);
+                includedStars[numOfStar] = true;
+            }
+            for (int numOfStar = 0; numOfStar < NStar; numOfStar++)
+            {
+                if (includedStars[numOfStar]) continue;
+                int nearGalaxy = -1;
+                double minDist = 1e10;
+                for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
                 {
-                    if (ufos[3 * numOfUfo + turn] == ships[numOfShip] && ufos[3 * numOfUfo + turn + 1] == numOfStar)
+                    auto galaxy = galaxies[numOfGalaxy];
+                    double dist = 0;
+                    dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
+                    dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                    dist = sqrt(dist);
+                    if (dist < minDist)
                     {
-                        energy *= 0.001 * 0.001;
+                        minDist = dist;
+                        nearGalaxy = numOfGalaxy;
                     }
                 }
-                double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar || usingUFO ? 1. : 0) / (maxTurn * maxTurn);
-                if (score > maxScore)
+                galaxies[nearGalaxy].addStars(numOfStar);
+            }
+            inTerritory = vector<bool>(ships.size(), false);
+            ownedGalaxies = vector<int>(ships.size());
+            vector<bool> owned(galaxies.size(), false);
+            for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+            {
+                int nearGalaxy = -1;
+                double minDist = 1e10;
+                int numOfStar = ships[numOfShip];
+                for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
                 {
-                    maxScore = score;
-                    nextNumOfStar = numOfStar;
+                    if (owned[numOfGalaxy]) continue;
+                    auto galaxy = galaxies[numOfGalaxy];
+                    double dist = 0;
+                    dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
+                    dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                    dist = sqrt(dist);
+                    if (dist < minDist)
+                    {
+                        minDist = dist;
+                        nearGalaxy = numOfGalaxy;
+                    }
+                }
+                ownedGalaxies[numOfShip] = nearGalaxy;
+                owned[nearGalaxy] = true;
+                for (auto& numOfStar : galaxies[ownedGalaxies[numOfShip]].stars)
+                {
+                    if (numOfStar == ships[numOfShip])
+                    {
+                        inTerritory[numOfShip] = true;
+                        break;
+                    }
                 }
             }
-            visitedStars.insert(nextNumOfStar);
-            ret.push_back(nextNumOfStar);
+        }
+        vector<int> ret(ships.size());
+        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+        {
+            ret[numOfShip] = ships[numOfShip];
         }
         return ret;
     }
