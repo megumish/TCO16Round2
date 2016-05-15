@@ -105,6 +105,10 @@ public:
                 }
                 galaxies[nearGalaxy].addStars(numOfStar);
             }
+            for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
+            {
+                cerr << galaxies[numOfGalaxy].center.x << "," << galaxies[numOfGalaxy].center.y << endl;
+            }
             territories = vector<vector<int>>(ships.size());
             ownedGalaxies = vector<int>(ships.size());
             vector<bool> owned(galaxies.size(), false);
@@ -147,7 +151,6 @@ public:
             int numOfGalaxy = ownedGalaxies[numOfShip];
             if (shipsTerritory.size() != 1 || find(shipsTerritory.begin(), shipsTerritory.end(), numOfShip) == shipsTerritory.end())
             {
-                cerr << "Not Ready On:" << numOfShip << endl;
                 double maxScore = -1e10;
                 int nextNumOfStar = -1;
                 for (int numOfStar = 0; numOfStar < NStar; ++numOfStar)
@@ -169,18 +172,17 @@ public:
                     double dist = 0;
                     dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
                     dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
-                    auto othersDist = 0;
+                    double othersDist = 0;
                     for (int numOfOthersGalaxy = 0; numOfOthersGalaxy < galaxies.size(); numOfOthersGalaxy++)
                     {
                         if (numOfOthersGalaxy != ownedGalaxies[numOfShip])
                         {
                             auto galaxy = galaxies[numOfOthersGalaxy];
-                            double dist = 0;
-                            dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
-                            dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                            othersDist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
+                            othersDist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
                         }
                     }
-                    double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar || usingUFO ? 1. : 0) / (maxTurn * maxTurn) - dist*0.01 + othersDist * -0.01;
+                    double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar || usingUFO ? 1. : 0) / (maxTurn * maxTurn) - dist*0.01 + othersDist * 0.01;
                     if (score > maxScore)
                     {
                         maxScore = score;
@@ -219,15 +221,14 @@ public:
                                     }
                                 }
                             }
-                            auto othersDist = 0;
+                            double othersDist = 0;
                             for (int numOfOthersGalaxy = 0; numOfOthersGalaxy < galaxies.size(); numOfOthersGalaxy++)
                             {
                                 if (numOfOthersGalaxy != ownedGalaxies[numOfShip])
                                 {
                                     auto galaxy = galaxies[numOfOthersGalaxy];
-                                    double dist = 0;
-                                    dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
-                                    dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                                    othersDist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
+                                    othersDist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
                                 }
                             }
                             double score = -energy + (double)(turn * turn) * 1e6 * (usingNewStar ? 1. : 0) / (maxTurn * maxTurn) + othersDist * 0.01;
