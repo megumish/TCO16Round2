@@ -49,8 +49,13 @@ public:
     int currentTurn;
     int maxTurn;
     bool initSettings;
+    set<int> visitedStars;
     vector<int> ownedGalaxies;
-    vector<bool> inTerritory;
+    vector<vector<int>> territories;
+    vector<bool> decidePaths;
+    vector<bool> onReady;
+    vector<vector<int>> paths;
+    bool ready;
     int init(vector<int> stars)
     {
         NStar = stars.size() / 2;
@@ -58,16 +63,20 @@ public:
         maxTurn = 4 * NStar;
         currentTurn = 0;
         initSettings = true;
+        ready = false;
+        visitedStars = set<int>();
         return 0;
     }
     vector<int> makeMoves(vector<int> ufos, vector<int> ships)
     {
         currentTurn++;
         random_device seed_gen;
-        mt19937 engine(seed_gen);
+        mt19937 engine(seed_gen());
         uniform_int_distribution<int> distStar(0, NStar - 1);
         if (initSettings)
         {
+            cerr << "init" << endl;
+            initSettings = false;
             vector<bool> includedStars(NStar,false);
             galaxies = vector<Garaxy>(ships.size());
             for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
@@ -96,14 +105,14 @@ public:
                 }
                 galaxies[nearGalaxy].addStars(numOfStar);
             }
-            inTerritory = vector<bool>(ships.size(), false);
+            territories = vector<vector<int>>(ships.size());
             ownedGalaxies = vector<int>(ships.size());
             vector<bool> owned(galaxies.size(), false);
-            for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+            for (int numOfShipOwing = 0; numOfShipOwing < ships.size(); numOfShipOwing++)
             {
                 int nearGalaxy = -1;
                 double minDist = 1e10;
-                int numOfStar = ships[numOfShip];
+                int numOfStar = ships[numOfShipOwing];
                 for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
                 {
                     if (owned[numOfGalaxy]) continue;
@@ -118,22 +127,127 @@ public:
                         nearGalaxy = numOfGalaxy;
                     }
                 }
-                ownedGalaxies[numOfShip] = nearGalaxy;
+                ownedGalaxies[numOfShipOwing] = nearGalaxy;
                 owned[nearGalaxy] = true;
-                for (auto& numOfStar : galaxies[ownedGalaxies[numOfShip]].stars)
+                for (auto& numOfStar : galaxies[ownedGalaxies[numOfShipOwing]].stars)
                 {
-                    if (numOfStar == ships[numOfShip])
+                    for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
                     {
-                        inTerritory[numOfShip] = true;
-                        break;
+                        if (ships[numOfShip] == numOfStar) territories[numOfShipOwing].push_back(numOfShip);
                     }
                 }
+            }
+            paths = vector<vector<int>>(ships.size(), vector<int>(maxTurn + 1, -1));
+            for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++) paths[numOfShip][0] = ships[numOfShip];
+            decidePaths = vector<bool>(ships.size(), false);
+        }
+        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+        {
+            auto shipsTerritory = territories[numOfShip];
+            int numOfGalaxy = ownedGalaxies[numOfShip];
+            if (shipsTerritory.size() != 1 || find(shipsTerritory.begin(), shipsTerritory.end(), numOfShip) == shipsTerritory.end())
+            {
+                cerr << "Not Ready On:" << numOfShip << endl;
+                double maxScore = -1e10;
+                int nextNumOfStar = -1;
+                for (int numOfStar = 0; numOfStar < NStar; ++numOfStar)
+                {
+                    bool usingNewStar = false;
+                    bool usingUFO = false;
+                    if (visitedStars.find(numOfStar) == visitedStars.end()) usingNewStar = true;
+                    double energy = 0;
+                    energy += (allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]])*(allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]]);
+                    energy += (allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1]);
+                    for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3); numOfUfo++)
+                    {
+                        if (ufos[3 * numOfUfo] == ships[numOfShip] && ufos[3 * numOfUfo + 1] == numOfStar)
+                        {
+                            energy *= 0.001 * 0.001;
+                        }
+                    }
+                    auto galaxy = galaxies[numOfGalaxy];
+                    double dist = 0;
+                    dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
+                    dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                    auto othersDist = 0;
+                    for (int numOfOthersGalaxy = 0; numOfOthersGalaxy < galaxies.size(); numOfOthersGalaxy++)
+                    {
+                        if (numOfOthersGalaxy != ownedGalaxies[numOfShip])
+                        {
+                            auto galaxy = galaxies[numOfOthersGalaxy];
+                            double dist = 0;
+                            dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
+                            dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                        }
+                    }
+                    double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar || usingUFO ? 1. : 0) / (maxTurn * maxTurn) - dist*0.01 + othersDist * -0.01;
+                    if (score > maxScore)
+                    {
+                        maxScore = score;
+                        nextNumOfStar = numOfStar;
+                    }
+                }
+                paths[numOfShip][currentTurn] = nextNumOfStar;
+            }
+            else if (!decidePaths[numOfShip])
+            {
+                cerr << numOfShip << ":" << "make path" << endl;
+                decidePaths[numOfShip] = true;
+                [&]()
+                {
+                    auto willVisitStars = visitedStars;
+                    for (int turn = currentTurn; turn <= maxTurn; turn++)
+                    {
+                        if (willVisitStars.size() == NStar) return;
+                        double maxScore = -1e10;
+                        int nextNumOfStar = -1;
+                        int prevNumOfStar = paths[numOfShip][turn - 1];
+                        for (auto& numOfStar : galaxies[ownedGalaxies[numOfShip]].stars)
+                        {
+                            bool usingNewStar = false;
+                            if (willVisitStars.find(numOfStar) == willVisitStars.end()) usingNewStar = true;
+                            double energy = 0;
+                            energy += (allStars[2 * numOfStar] - allStars[2 * prevNumOfStar])*(allStars[2 * numOfStar] - allStars[2 * prevNumOfStar]);
+                            energy += (allStars[2 * numOfStar + 1] - allStars[2 * prevNumOfStar + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * prevNumOfStar + 1]);
+                            if (turn <= 1)
+                            {
+                                for (int numOfUfo = 0; numOfUfo < (ufos.size() / 3); numOfUfo++)
+                                {
+                                    if (ufos[3 * numOfUfo + turn] == ships[numOfShip] && ufos[3 * numOfUfo + turn + 1] == numOfStar)
+                                    {
+                                        energy *= 0.001 * 0.001;
+                                    }
+                                }
+                            }
+                            auto othersDist = 0;
+                            for (int numOfOthersGalaxy = 0; numOfOthersGalaxy < galaxies.size(); numOfOthersGalaxy++)
+                            {
+                                if (numOfOthersGalaxy != ownedGalaxies[numOfShip])
+                                {
+                                    auto galaxy = galaxies[numOfOthersGalaxy];
+                                    double dist = 0;
+                                    dist += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
+                                    dist += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                                }
+                            }
+                            double score = -energy + (double)(turn * turn) * 1e6 * (usingNewStar ? 1. : 0) / (maxTurn * maxTurn) + othersDist * 0.01;
+                            if (score > maxScore)
+                            {
+                                maxScore = score;
+                                nextNumOfStar = numOfStar;
+                            }
+                        }
+                        paths[numOfShip][turn] = nextNumOfStar;
+                        willVisitStars.insert(nextNumOfStar);
+                    }
+                }();
             }
         }
         vector<int> ret(ships.size());
         for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
         {
-            ret[numOfShip] = ships[numOfShip];
+            ret[numOfShip] = paths[numOfShip][currentTurn];
+            visitedStars.insert(paths[numOfShip][currentTurn]);
         }
         return ret;
     }
