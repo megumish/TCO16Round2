@@ -51,6 +51,27 @@ Galaxy Galaxy::merge(Galaxy& g, Galaxy& h)
     }
     return g;
 }
+
+class UFOInfo {
+public:
+    int numOfUFO;
+    bool onShip;
+    double averageDistance;
+    Galaxy territory;
+    UFOInfo(): numOfUFO(-1),totalDistance(0),count(0){};
+    void computeAverage(double newDistance);
+private:
+    double totalDistance;
+    int count;
+};
+
+void UFOInfo::computeAverage(double newDistance)
+{
+    totalDistance += newDistance;
+    count++;
+    averageDistance = totalDistance / count;
+}
+
 class StarTraveller {
 public:
     int NStar;
@@ -59,11 +80,10 @@ public:
     int visited;
     bool initSettings;
     vector<int> visitedStars;
-    vector<Galaxy> ownedGalaxies;
+    vector<UFOInfo> ownedUFO;
     vector<bool> inTerritory;
-    vector<bool> usingUFO;
+    vector<UFOInfo> UFOInfos;
     vector<vector<int>> paths;
-    int expeditionCount;
     bool ready;
     int init(vector<int> stars)
     {
@@ -85,288 +105,178 @@ public:
         uniform_int_distribution<int> distStar(0, NStar - 1);
         vector<int> ret(ships.size());
         for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++) ret[numOfShip] = ships[numOfShip];
-        if (initSettings)
+        if (ufos.size() != 0 && currentTurn * 100 <= maxTurn)
         {
-            vector<Galaxy> galaxies;
-            cerr << "init" << endl;
-            initSettings = false;
-            galaxies = vector<Galaxy>(NStar);
-            for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
+            if (currentTurn == 1)
             {
-                galaxies[numOfGalaxy].addStars(numOfGalaxy);
+                cerr << "Observing UFO" << endl;
+                UFOInfos.resize(ufos.size() / 3);
+                for (int numOfUFO = 0; numOfUFO < UFOInfos.size(); numOfUFO++) UFOInfos[numOfUFO].numOfUFO = numOfUFO;
             }
-            int k = 1;
-            while (galaxies.size() > ships.size())
+            for (int numOfUFO = 0; numOfUFO < ufos.size() / 3; numOfUFO++)
             {
-                k++;
-                cerr << galaxies.size() << endl;
-                vector<Galaxy> newGalaxies;
-                vector<bool> merged(galaxies.size(), false);
-                for (int numOfGalaxy0 = 0; numOfGalaxy0 < galaxies.size(); numOfGalaxy0++)
+                int numOfStar0 = ufos[3 * numOfUFO];
+                int numOfStar1 = ufos[3 * numOfUFO + 1];
+                double distance = 0;
+                distance += (allStars[2 * numOfStar1] - allStars[2 * numOfStar0])*(allStars[2 * numOfStar1] - allStars[2 * numOfStar0]);
+                distance += (allStars[2 * numOfStar1 + 1] - allStars[2 * numOfStar0 + 1])*(allStars[2 * numOfStar1 + 1] - allStars[2 * numOfStar0 + 1]);
+                distance = sqrt(distance);
+                UFOInfos[numOfUFO].computeAverage(distance);
+            }
+        }
+        else if (ufos.size() != 0 && initSettings)
+        {
+            cerr << "InitSettings" << endl;
+            initSettings = false;
+            sort(UFOInfos.begin(),UFOInfos.end(),[](UFOInfo info0,UFOInfo info1)
+            {
+                return info0.averageDistance > info1.averageDistance;
+            });
+            cerr << "define ufo's territory" << endl;
+            for (int numOfUFOInfo = 0; numOfUFOInfo < UFOInfos.size(); numOfUFOInfo++)
+            {
+                auto& info = UFOInfos[numOfUFOInfo];
+                int numOfStarOnUFO = ufos[3 * info.numOfUFO];
+                auto& territory = info.territory;
+                territory.addStars(numOfStarOnUFO);
+                vector<bool> added(NStar, false);
+                added[numOfStarOnUFO] = true;
+                bool ok = false;
+                while (!ok)
                 {
-                    if (merged[numOfGalaxy0]) continue;
-                    for (int numOfGalaxy1 = numOfGalaxy0 + 1; numOfGalaxy1 < galaxies.size(); numOfGalaxy1++)
+                    ok = true;
+                    Galaxy newTerritory = territory;
+                    for (auto& numOfStar0 : territory.stars)
                     {
-                        if (numOfGalaxy0 == numOfGalaxy1) continue;
-                        if (merged[numOfGalaxy1]) continue;
-                        double distance = 0;
-                        distance += (galaxies[numOfGalaxy0].center.x - galaxies[numOfGalaxy1].center.x) * (galaxies[numOfGalaxy0].center.x - galaxies[numOfGalaxy1].center.x);
-                        distance += (galaxies[numOfGalaxy0].center.y - galaxies[numOfGalaxy1].center.y) * (galaxies[numOfGalaxy0].center.y - galaxies[numOfGalaxy1].center.y);
-                        if (distance < k)
+                        for (int numOfStar1 = 0; numOfStar1 < NStar; numOfStar1++)
                         {
-                            merged[numOfGalaxy0] = merged[numOfGalaxy1] = true;
-                            newGalaxies.push_back(Galaxy::merge(galaxies[numOfGalaxy0], galaxies[numOfGalaxy1]));
-                            break;
+                            if (added[numOfStar1]) continue;
+                            double distance = 0;
+                            distance += (allStars[2 * numOfStar1] - allStars[2 * numOfStar0])*(allStars[2 * numOfStar1] - allStars[2 * numOfStar0]);
+                            distance += (allStars[2 * numOfStar1 + 1] - allStars[2 * numOfStar0 + 1])*(allStars[2 * numOfStar1 + 1] - allStars[2 * numOfStar0 + 1]);
+                            distance = sqrt(distance);
+                            if (distance < info.averageDistance)
+                            {
+                                newTerritory.addStars(numOfStar1);
+                                added[numOfStar1] = true;
+                                ok = false;
+                            }
                         }
                     }
+                    territory = newTerritory;
                 }
-                for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++) if (!merged[numOfGalaxy])
-                {
-                    newGalaxies.push_back(galaxies[numOfGalaxy]);
-                }
-                galaxies = newGalaxies;
             }
-            for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
+            for (int numOfUFOInfo = 0; numOfUFOInfo < UFOInfos.size(); numOfUFOInfo++)
             {
-                cerr << galaxies[numOfGalaxy].center.x << "," << galaxies[numOfGalaxy].center.y << endl;
-                cerr << galaxies[numOfGalaxy].stars.size() << endl;
+                cerr << UFOInfos[numOfUFOInfo].territory.center.x << "," << UFOInfos[numOfUFOInfo].territory.center.y << endl;
+                cerr << UFOInfos[numOfUFOInfo].territory.stars.size() << endl;
             }
+            cerr << "give ownership each ships" << endl;
             inTerritory = vector<bool>(ships.size(), false);
-            ownedGalaxies = vector<Galaxy>(ships.size());
-            vector<bool> owned(galaxies.size(), false);
+            ownedUFO = vector<UFOInfo>(ships.size());
+            vector<bool> owing(ships.size(), false);
             double maxDist = -1e10;
             int expeditionShip = -1;
-            for (int numOfShipOwing = 0; numOfShipOwing < ships.size(); numOfShipOwing++)
+            for (int numOfUFOInfo = 0; numOfUFOInfo < UFOInfos.size(); numOfUFOInfo++)
             {
-                int nearGalaxy = -1;
+                int nearShip = -1;
                 double minDistance = 1e10;
-                int numOfStar = ships[numOfShipOwing];
-                for (int numOfGalaxy = 0; numOfGalaxy < galaxies.size(); numOfGalaxy++)
+                auto territory = UFOInfos[numOfUFOInfo].territory;
+                for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
                 {
-                    if (owned[numOfGalaxy]) continue;
-                    auto galaxy = galaxies[numOfGalaxy];
+                    int numOfStarOnShip = ships[numOfShip];
+                    if (owing[numOfShip]) continue;
                     double distance = 0;
-                    distance += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
-                    distance += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
+                    distance += (territory.center.x - allStars[2 * numOfStarOnShip]) * (territory.center.x - allStars[2 * numOfStarOnShip]);
+                    distance += (territory.center.y - allStars[2 * numOfStarOnShip + 1]) * (territory.center.y - allStars[2 * numOfStarOnShip + 1]);
                     distance = sqrt(distance);
                     if (distance < minDistance)
                     {
                         minDistance = distance;
-                        nearGalaxy = numOfGalaxy;
+                        nearShip = numOfShip;
                     }
                 }
-                if (minDistance > maxDist)
+                if (nearShip != -1)
                 {
-                    maxDist = minDistance;
-                    expeditionShip = numOfShipOwing;
-                }
-                ownedGalaxies[numOfShipOwing] = galaxies[nearGalaxy];
-                owned[nearGalaxy] = true;
-                for (auto& numOfStar : ownedGalaxies[numOfShipOwing].stars)
-                {
-                    if (ships[numOfShipOwing] == numOfStar)
+                    ownedUFO[nearShip] = UFOInfos[numOfUFOInfo];
+                    owing[nearShip] = true;
+                    for (auto& numOfStar : ownedUFO[nearShip].territory.stars)
                     {
-                        cerr << "in territory:" << numOfShipOwing << endl;
-                        inTerritory[numOfShipOwing] = true;
-                        break;
+                        if (ships[nearShip] == numOfStar)
+                        {
+                            inTerritory[nearShip] = true;
+                            break;
+                        }
                     }
                 }
             }
-        }
-        usingUFO = vector<bool>(ufos.size() / 3, false);
-        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
-        {
-            auto galaxy = ownedGalaxies[numOfShip];
-            if (!inTerritory[numOfShip])
+            for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
             {
-                double maxScore = -1e10;
-                int nextNumOfStar = -1;
-                int useUFO = -1;
-                bool stop = true;
-                for (int numOfStar = 0; numOfStar < NStar; numOfStar++)
+                cerr << "Ship:" << numOfShip << "owns UFO:" << ownedUFO[numOfShip].numOfUFO << endl;
+            }
+        }
+        else if (currentTurn * 4 <= maxTurn * 3)
+        {
+            if(currentTurn == 1) cerr << "Run" << endl;
+            for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+            {
+                auto& info = ownedUFO[numOfShip];
+                if (info.numOfUFO != -1)
                 {
-                    bool usingNewStar = false;
-                    int seeUFO = -1;
-                    if (visitedStars[numOfStar] == 0)
+                    auto territory = info.territory;
+                    if (!info.onShip)
                     {
-                        usingNewStar = true;
-                        stop = false;
-                    }
-                    double energy = 0;
-                    energy += (allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]])*(allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]]);
-                    energy += (allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1]);
-                    double UFODistance = 1e6;
-                    for (int numOfUFO = 0; numOfUFO < (ufos.size() / 3); numOfUFO++)
-                    {
-                        if (!usingUFO[numOfUFO])
+                        if (!inTerritory[numOfShip])
                         {
-                            double distance = 0;
-                            distance += (allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 2]])*(allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 2]]);
-                            distance += (allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 2] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 2] + 1]);
-                            auto temp = distance;
-                            distance = 0;
-                            distance += (allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 1]])*(allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 1]]);
-                            distance += (allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 1] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 1] + 1]);
-                            distance = min(distance, temp);
-                            if (ufos[3 * numOfUFO] == ships[numOfShip] && ufos[3 * numOfUFO + 1] == numOfStar)
+                            double minDistance = 1e10;
+                            for (auto& numOfStar : territory.stars)
                             {
-                                energy = 1e-10;
+                                double distance = 0;
+                                distance += (allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]])*(allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]]);
+                                distance += (allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1]);
+                                distance = sqrt(distance);
+                                if (distance < minDistance)
+                                {
+                                    minDistance = distance;
+                                    ret[numOfShip] = numOfStar;
+                                }
                             }
-                            if (distance < UFODistance)
+                            inTerritory[numOfShip] = true;
+                        }
+                        else
+                        {
+                            int UFONextStar = ufos[3 * info.numOfUFO + 2];
+                            int shipStar = ships[numOfShip];
+                            double distance = 0;
+                            distance += (allStars[2 * UFONextStar] - allStars[2 * shipStar])*(allStars[2 * UFONextStar] - allStars[2 * shipStar]);
+                            distance += (allStars[2 * UFONextStar + 1] - allStars[2 * shipStar + 1])*(allStars[2 * UFONextStar + 1] - allStars[2 * shipStar + 1]);
+                            distance = sqrt(distance);
+                            if (distance < 10)
                             {
-                                UFODistance = distance;
-                                seeUFO = numOfUFO;
+                                ret[numOfShip] = UFONextStar;
+                                info.onShip = true;
                             }
                         }
                     }
-                    double galaxyDistance = 0;
-                    galaxyDistance += (galaxy.center.x - allStars[2 * numOfStar]) * (galaxy.center.x - allStars[2 * numOfStar]);
-                    galaxyDistance += (galaxy.center.y - allStars[2 * numOfStar + 1]) * (galaxy.center.y - allStars[2 * numOfStar + 1]);
-                    double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar ? 1. : 0) / (maxTurn * maxTurn)
-                        - UFODistance*abs(0.5 - (double)visited / NStar)*0.01 - galaxyDistance;
-                    if (score > maxScore)
+                    else
                     {
-                        maxScore = score;
-                        nextNumOfStar = numOfStar;
-                        useUFO = seeUFO;
-                    }
-                }
-                if (useUFO != -1) usingUFO[useUFO] = true;
-                ret[numOfShip] = nextNumOfStar;
-                if (stop) ret[numOfShip] = ships[numOfShip];
-                if (ret[numOfShip] != ships[numOfShip] || visitedStars[ret[numOfShip]] == 0)
-                {
-                    if (visitedStars[ret[numOfShip]] == 0) visited++;
-                    ++visitedStars[ret[numOfShip]];
-                }
-                for (auto& numOfStar : ownedGalaxies[numOfShip].stars)
-                {
-                    if (ships[numOfShip] == numOfStar)
-                    {
-                        cerr << "in territory:" << numOfShip << endl;
-                        inTerritory[numOfShip] = true;
-                        break;
+                        ret[numOfShip] = ufos[3 * info.numOfUFO + 1];
                     }
                 }
             }
         }
-        //    else
-        //    {
-        //        double maxScore = -1e10;
-        //        int nextNumOfStar = -1;
-        //        int useUFO = -1;
-        //        bool stop = true;
-        //        set<int> enableUFO;
-        //        for (int numOfUFO = 0; numOfUFO < (ufos.size() / 3); numOfUFO++)
-        //        {
-        //            for (auto& numOfStar : galaxy.stars)
-        //            {
-        //                if (numOfStar == ufos[3 * numOfUFO + 1])
-        //                {
-        //                    enableUFO.insert(numOfUFO);
-        //                    break;
-        //                }
-        //            }
-        //        }
-        //        set<int> otherShipsInTerritory;
-        //        for (int numOfOtherShip = 0; numOfOtherShip < ships.size(); numOfOtherShip++)
-        //        {
-        //            if (numOfOtherShip == numOfShip) continue;
-        //            for (auto& numOfStar : galaxy.stars)
-        //            {
-        //                if (numOfStar == ships[numOfOtherShip])
-        //                {
-        //                    otherShipsInTerritory.insert(numOfOtherShip);
-        //                    break;
-        //                }
-        //            }
-        //        }
-        //        if (true)
-        //        {
-        //            for (auto& numOfStar : galaxy.stars)
-        //            {
-        //                bool usingNewStar = false;
-        //                bool UFODriver = true;
-        //                int seeUFO = -1;
-        //                if (visitedStars[numOfStar] == 0)
-        //                {
-        //                    usingNewStar = true;
-        //                    stop = false;
-        //                }
-        //                double energy = 0;
-        //                energy += (allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]])*(allStars[2 * numOfStar] - allStars[2 * ships[numOfShip]]);
-        //                energy += (allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ships[numOfShip] + 1]);
-        //                double UFODistance = 1e6;
+        else
+        {
 
-        //                for (auto& numOfUFO : enableUFO)
-        //                {
-        //                    if (!usingUFO[numOfUFO])
-        //                    {
-        //                        double distance = 0;
-        //                        distance += (allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 2]])*(allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 2]]);
-        //                        distance += (allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 2] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 2] + 1]);
-        //                        auto temp = distance;
-        //                        distance = 0;
-        //                        distance += (allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 1]])*(allStars[2 * numOfStar] - allStars[2 * ufos[3 * numOfUFO + 1]]);
-        //                        distance += (allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 1] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ufos[3 * numOfUFO + 1] + 1]);
-        //                        distance = min(distance, temp);
-        //                        if (ufos[3 * numOfUFO] == ships[numOfShip] && ufos[3 * numOfUFO + 1] == numOfStar)
-        //                        {
-        //                            energy = 0;
-        //                        }
-        //                        if (distance < UFODistance)
-        //                        {
-        //                            UFODistance = distance;
-        //                            seeUFO = numOfUFO;
-        //                        }
-        //                    }
-        //                }
-        //                double otherShipDistance = 1e6;
-        //                for (auto& numOfOtherShip : otherShipsInTerritory)
-        //                {
-        //                    double distance = 0;
-        //                    distance += (allStars[2 * numOfStar] - allStars[2 * ret[numOfOtherShip]])*(allStars[2 * numOfStar] - allStars[2 * ret[numOfOtherShip]]);
-        //                    distance += (allStars[2 * numOfStar + 1] - allStars[2 * ret[numOfOtherShip] + 1])*(allStars[2 * numOfStar + 1] - allStars[2 * ret[numOfOtherShip] + 1]);
-        //                    otherShipDistance = min(distance, otherShipDistance);
-        //                }
-        //                double score = -energy + (double)(currentTurn * currentTurn) * 1e6 * (usingNewStar ? 1. : 0) / (maxTurn * maxTurn)
-        //                    - UFODistance*abs(0.5 - (double)visited/NStar) + otherShipDistance*0.01;
-        //                if (score > maxScore)
-        //                {
-        //                    maxScore = score;
-        //                    nextNumOfStar = numOfStar;
-        //                    useUFO = seeUFO;
-        //                }
-        //            }
-        //        }
-        //        if (useUFO != -1) usingUFO[useUFO] = true;
-        //        ret[numOfShip] = nextNumOfStar;
-        //        if (stop)
-        //        {
-        //            ret[numOfShip] = ships[numOfShip];
-        //            for (auto& numOfUFO : enableUFO)
-        //            {
-        //                if (!usingUFO[numOfUFO])
-        //                {
-        //                    if (ufos[3 * numOfUFO] == ships[numOfShip] && visitedStars[ufos[3 * numOfUFO + 1]] == 0)
-        //                    {
-        //                        ret[numOfShip] = ufos[3 * numOfUFO + 1];
-        //                        usingUFO[numOfUFO] = true;
-        //                    }
-        //                }
-        //            }
-        //        }
-        //        if (ret[numOfShip] != ships[numOfShip] || visitedStars[ret[numOfShip]] == 0)
-        //        {
-        //            if (visitedStars[ret[numOfShip]] == 0) visited++;
-        //            ++visitedStars[ret[numOfShip]];
-        //        }
-        //    }
-        //}
-        //for (int numOfUFO = 0; numOfUFO < ufos.size() / 3; numOfUFO++)
-        //{
-        //    usingUFO[numOfUFO] = false;
-        //}
+        }
+        for (int numOfShip = 0; numOfShip < ships.size(); numOfShip++)
+        {
+            if (ret[numOfShip] != ships[numOfShip] || visitedStars[ret[numOfShip]] == 0)
+            {
+                if (visitedStars[ret[numOfShip]] == 0) visited++;
+                ++visitedStars[ret[numOfShip]];
+            }
+        }
         return ret;
     }
 };
